@@ -48,18 +48,6 @@ def load_css():
 load_css()
 
 # --------------------------------------------------------
-# DARK MODE
-# --------------------------------------------------------
-dark_mode = st.sidebar.checkbox("🌙 Dark Mode", value=False)
-
-if dark_mode:
-    st.markdown("""
-        <style>
-            body { background-color: #0E1117; color: white; }
-        </style>
-    """, unsafe_allow_html=True)
-
-# --------------------------------------------------------
 # SIDEBAR NAVIGATION
 # --------------------------------------------------------
 menu = st.sidebar.radio("Navigation", ["🏠 Home", "🔮 Predict", "📊 Model Comparison", "ℹ️ About"])
