@@ -197,9 +197,9 @@ def render_3d_plot(df):
 # --------------------------------------------------------
 # MODEL COMPARISON PAGE
 # --------------------------------------------------------
-elif menu == " Model Comparison":
-
-    st.markdown("<div class='big-title'> Model Comparison Dashboard</div>", unsafe_allow_html=True)
+elif menu == "Model Comparison":
+    st.write("Model Comparison Page")
+      st.markdown("<div class='big-title'> Model Comparison Dashboard</div>", unsafe_allow_html=True)
 
     df = pd.DataFrame([
         {
