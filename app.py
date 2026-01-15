@@ -7,10 +7,11 @@ import plotly.express as px
 import plotly.graph_objects as go
 import json
 
+# --------------------------------------------------------
+# LOAD METRICS JSON
+# --------------------------------------------------------
 with open("model_metrics.json", "r") as f:
     model_metrics = json.load(f)
-
-
 
 # --------------------------------------------------------
 # PAGE CONFIG
@@ -22,7 +23,7 @@ st.set_page_config(
 )
 
 # --------------------------------------------------------
-# CUSTOM CSS FOR DARK/LIGHT MODE
+# CUSTOM CSS
 # --------------------------------------------------------
 def load_css():
     st.markdown("""
@@ -41,34 +42,25 @@ def load_css():
             margin-top: 2rem;
             margin-bottom: 1rem;
         }
-        .section {
-            background-color: rgba(255,255,255,0.07);
-            padding: 1.3rem;
-            border-radius: 10px;
-            margin-bottom: 1.5rem;
-        }
     </style>
     """, unsafe_allow_html=True)
 
 load_css()
 
 # --------------------------------------------------------
-# DARK MODE TOGGLE
+# DARK MODE
 # --------------------------------------------------------
 dark_mode = st.sidebar.checkbox("🌙 Dark Mode", value=False)
 
 if dark_mode:
-    st.markdown(
-        """
+    st.markdown("""
         <style>
             body { background-color: #0E1117; color: white; }
         </style>
-        """,
-        unsafe_allow_html=True
-    )
+    """, unsafe_allow_html=True)
 
 # --------------------------------------------------------
-# SIDEBAR MENU
+# SIDEBAR NAVIGATION
 # --------------------------------------------------------
 menu = st.sidebar.radio("Navigation", ["🏠 Home", "🔮 Predict", "📊 Model Comparison", "ℹ️ About"])
 
@@ -90,19 +82,7 @@ models = {
 scaler = load_pkl("scaler.pkl")
 
 # --------------------------------------------------------
-# PREDEFINED MODEL METRICS (OPTION A)
-# --------------------------------------------------------
-model_metrics = {
-    "Logistic Regression": {"Accuracy": 0.84, "AUC": 0.88},
-    "Decision Tree": {"Accuracy": 0.78, "AUC": 0.75},
-    "Random Forest": {"Accuracy": 0.91, "AUC": 0.93},
-    "XGBoost": {"Accuracy": 0.92, "AUC": 0.94},
-    "KNN": {"Accuracy": 0.82, "AUC": 0.80},
-    "Naive Bayes": {"Accuracy": 0.79, "AUC": 0.77},
-}
-
-# --------------------------------------------------------
-# INPUT FORM FUNCTION
+# USER INPUT FORM
 # --------------------------------------------------------
 def get_user_input():
     st.markdown("<div class='sub-title'>Enter Patient Details</div>", unsafe_allow_html=True)
@@ -110,11 +90,11 @@ def get_user_input():
     col1, col2 = st.columns(2)
 
     with col1:
-        age = st.number_input("Age", min_value=1, max_value=120, value=40)
-        resting_bp = st.number_input("Resting BP", min_value=50, max_value=250, value=120)
-        cholesterol = st.number_input("Cholesterol", min_value=50, max_value=600, value=200)
-        max_hr = st.number_input("Max Heart Rate", min_value=60, max_value=220, value=150)
-        oldpeak = st.number_input("Oldpeak", min_value=0.0, max_value=10.0, value=1.0)
+        age = st.number_input("Age", 1, 120, 40)
+        resting_bp = st.number_input("Resting BP", 50, 250, 120)
+        cholesterol = st.number_input("Cholesterol", 50, 600, 200)
+        max_hr = st.number_input("Max Heart Rate", 60, 220, 150)
+        oldpeak = st.number_input("Oldpeak", 0.0, 10.0, 1.0)
 
     with col2:
         sex = st.selectbox("Sex", ["M", "F"])
@@ -124,7 +104,7 @@ def get_user_input():
         exercise_angina = st.selectbox("Exercise Angina", ["N", "Y"])
         st_slope = st.selectbox("ST Slope", ["Flat", "Up"])
 
-    input_dict = {
+    return {
         "Age": age,
         "RestingBP": resting_bp,
         "Cholesterol": cholesterol,
@@ -142,22 +122,23 @@ def get_user_input():
         "ST_Slope_Up": 1 if st_slope == "Up" else 0,
     }
 
-    return input_dict
-
+# --------------------------------------------------------
+# HOME PAGE
+# --------------------------------------------------------
+if menu == "🏠 Home":
+    st.markdown("<div class='big-title'>❤️ Heart Disease Prediction App</div>", unsafe_allow_html=True)
+    st.write("This application predicts heart disease using multiple ML models.")
 
 # --------------------------------------------------------
 # PREDICT PAGE
 # --------------------------------------------------------
-if menu == "🔮 Predict":
+elif menu == "🔮 Predict":
     st.markdown("<div class='big-title'>❤️ Heart Disease Prediction</div>", unsafe_allow_html=True)
 
-    input_dict = get_user_input()
-    input_df = pd.DataFrame([input_dict])
+    input_data = get_user_input()
+    df_input = pd.DataFrame([input_data])
 
-    # Scale
-    scaled = scaler.transform(input_df)
-
-    # Prediction using best model (XGBoost)
+    scaled = scaler.transform(df_input)
     best_model = models["XGBoost"]
     pred = best_model.predict(scaled)[0]
 
@@ -167,98 +148,48 @@ if menu == "🔮 Predict":
         else:
             st.success("✅ Low Risk of Heart Disease", icon="💚")
 
-
-# --------------------------------------------------------
-# HOME PAGE
-# --------------------------------------------------------
-elif menu == "🏠 Home":
-    st.markdown("<div class='big-title'>❤️ Heart Disease Prediction App</div>", unsafe_allow_html=True)
-    st.write("This application predicts heart disease using multiple ML models.")
-
-
-def render_3d_plot(df):
-    st.markdown("### 🌐 3D Feature Visualization")
-
-    fig = px.scatter_3d(
-        df,
-        x="Age",
-        y="Cholesterol",
-        z="MaxHR",
-        color="HeartDisease",
-        symbol="HeartDisease",
-        color_continuous_scale=["green", "red"],
-        title="3D Scatter Plot: Age vs Cholesterol vs MaxHR",
-        height=600
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-
 # --------------------------------------------------------
 # MODEL COMPARISON PAGE
 # --------------------------------------------------------
-elif menu == "Model Comparison":
-    st.write("Model Comparison Page")
-      st.markdown("<div class='big-title'> Model Comparison Dashboard</div>", unsafe_allow_html=True)
+elif menu == "📊 Model Comparison":
+
+    st.markdown("<div class='big-title'>📊 Model Comparison Dashboard</div>", unsafe_allow_html=True)
 
     df = pd.DataFrame([
         {
             "Model": model,
-            "Accuracy": metrics["Accuracy"],
-            "ROC_AUC": metrics["ROC_AUC"],
-            "Precision": metrics["Precision"],
-            "Recall": metrics["Recall"],
-            "F1 Score": metrics["F1 Score"],
-            "MCC": metrics["MCC"]
+            **metrics
         }
         for model, metrics in model_metrics.items()
     ])
 
     st.dataframe(df)
 
-    # Accuracy bar chart
     st.write("### 📌 Accuracy Comparison")
-    fig_acc = px.bar(df, x="Model", y="Accuracy", color="Accuracy")
-    st.plotly_chart(fig_acc)
+    st.plotly_chart(px.bar(df, x="Model", y="Accuracy", color="Accuracy"))
 
-    # ROC_AUC bar chart
     st.write("### 📌 ROC-AUC Comparison")
-    fig_auc = px.bar(df, x="Model", y="ROC_AUC", color="ROC_AUC")
-    st.plotly_chart(fig_auc)
+    st.plotly_chart(px.bar(df, x="Model", y="ROC_AUC", color="ROC_AUC"))
 
-    # Radar chart
     st.write("### 📌 Radar Chart Summary")
     fig = go.Figure()
-
-    for model in model_metrics:
-        values = list(model_metrics[model].values())
+    for model, metrics in model_metrics.items():
         fig.add_trace(go.Scatterpolar(
-            r=values,
-            theta=list(model_metrics[model].keys()),
-            fill='toself',
+            r=list(metrics.values()),
+            theta=list(metrics.keys()),
+            fill="toself",
             name=model
         ))
-
     st.plotly_chart(fig)
 
-st.write("### 🌐 3D Feature Visualization")
-
-df_heart = pd.read_csv("heart.csv")
-
-fig3d = px.scatter_3d(
-    df_heart,
-    x="Age",
-    y="Cholesterol",
-    z="MaxHR",
-    color="HeartDisease",
-    color_continuous_scale=["green", "red"],
-    height=600
-)
-st.plotly_chart(fig3d)
-
-
-
-
+    # 3D Visualization
+    st.write("### 🌐 3D Feature Visualization")
+    df_heart = pd.read_csv("heart.csv")
+    fig3d = px.scatter_3d(
+        df_heart, x="Age", y="Cholesterol", z="MaxHR",
+        color="HeartDisease", color_continuous_scale=["green", "red"], height=600
+    )
+    st.plotly_chart(fig3d)
 
 # --------------------------------------------------------
 # ABOUT PAGE
@@ -266,11 +197,8 @@ st.plotly_chart(fig3d)
 elif menu == "ℹ️ About":
     st.markdown("<div class='big-title'>ℹ️ About This App</div>", unsafe_allow_html=True)
     st.write("""
-        This Heart Disease Prediction App uses multiple machine learning models trained 
-        on clinical patient data. It includes charts, comparison dashboards, dark mode, 
-        and a clean user interface.
+        This Heart Disease Prediction App uses multiple ML models trained 
+        on clinical patient data, including charts, dashboards, dark mode, 
+        3D visualization and much more.
     """)
-
     st.markdown("### 👨‍💻 Created by **Surya Paladi**")
-
-
