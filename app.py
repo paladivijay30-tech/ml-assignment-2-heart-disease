@@ -5,6 +5,12 @@ import pickle
 from matplotlib import pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
+import json
+
+with open("model_metrics.json", "r") as f:
+    model_metrics = json.load(f)
+
+
 
 # --------------------------------------------------------
 # PAGE CONFIG
@@ -196,36 +202,61 @@ elif menu == "📊 Model Comparison":
     st.markdown("<div class='big-title'>📊 Model Comparison Dashboard</div>", unsafe_allow_html=True)
 
     df = pd.DataFrame([
-        {"Model": m, "Accuracy": model_metrics[m]["Accuracy"], "AUC": model_metrics[m]["AUC"]}
-        for m in model_metrics
+        {
+            "Model": model,
+            "Accuracy": metrics["Accuracy"],
+            "ROC_AUC": metrics["ROC_AUC"],
+            "Precision": metrics["Precision"],
+            "Recall": metrics["Recall"],
+            "F1 Score": metrics["F1 Score"],
+            "MCC": metrics["MCC"]
+        }
+        for model, metrics in model_metrics.items()
     ])
 
+    st.dataframe(df)
+
+    # Accuracy bar chart
     st.write("### 📌 Accuracy Comparison")
-    fig1 = px.bar(df, x="Model", y="Accuracy", color="Accuracy")
-    st.plotly_chart(fig1, use_container_width=True)
+    fig_acc = px.bar(df, x="Model", y="Accuracy", color="Accuracy")
+    st.plotly_chart(fig_acc)
 
-    st.write("### 📌 AUC Comparison")
-    fig2 = px.bar(df, x="Model", y="AUC", color="AUC")
-    st.plotly_chart(fig2, use_container_width=True)
+    # ROC_AUC bar chart
+    st.write("### 📌 ROC-AUC Comparison")
+    fig_auc = px.bar(df, x="Model", y="ROC_AUC", color="ROC_AUC")
+    st.plotly_chart(fig_auc)
 
-    st.write("### 📌 Radar Chart Comparison")
+    # Radar chart
+    st.write("### 📌 Radar Chart Summary")
     fig = go.Figure()
 
-    for m in model_metrics:
+    for model in model_metrics:
+        values = list(model_metrics[model].values())
         fig.add_trace(go.Scatterpolar(
-            r=[model_metrics[m]["Accuracy"], model_metrics[m]["AUC"]],
-            theta=["Accuracy", "AUC"],
+            r=values,
+            theta=list(model_metrics[model].keys()),
             fill='toself',
-            name=m
+            name=model
         ))
 
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig)
 
-    # -----------------------------
-    # 🚀 ADD THIS: 3D Visualization
-    # -----------------------------
-    st.write("### 🌐 3D Feature Visualization")
-    render_3d_plot(full_dataset_df) 
+st.write("### 🌐 3D Feature Visualization")
+
+df_heart = pd.read_csv("heart.csv")
+
+fig3d = px.scatter_3d(
+    df_heart,
+    x="Age",
+    y="Cholesterol",
+    z="MaxHR",
+    color="HeartDisease",
+    color_continuous_scale=["green", "red"],
+    height=600
+)
+st.plotly_chart(fig3d)
+
+
 
 
 
