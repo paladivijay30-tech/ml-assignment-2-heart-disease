@@ -1,87 +1,57 @@
-import pandas as pd
-import numpy as np
-
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import (
-    accuracy_score, roc_auc_score, precision_score,
-    recall_score, f1_score, matthews_corrcoef
-)
-
-from sklearn.linear_model import LogisticRegression
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.naive_bayes import GaussianNB
-from sklearn.ensemble import RandomForestClassifier
-
-import xgboost as xgb
+import streamlit as st
 import pickle
+import pandas as pd
 
-df = pd.read_csv("C:/Users/SESA804787/OneDrive - Schneider Electric/SE/WILP/Machine Learning/Assignment 2/heart.csv")
-df.head()
-# Separate features and target
-X = df.drop("HeartDisease", axis=1)
-y = df["HeartDisease"]
+# Load the trained model & scaler
+model = pickle.load(open("Random_Forest.pkl", "rb"))
+scaler = pickle.load(open("scaler.pkl", "rb"))
 
-# Identify categorical and numeric columns
-categorical_cols = X.select_dtypes(include=["object"]).columns
-numeric_cols = X.select_dtypes(exclude=["object"]).columns
+st.set_page_config(page_title="Heart Disease Prediction", page_icon="❤️")
 
-# One-hot encode categoricals
-X_encoded = pd.get_dummies(X, columns=categorical_cols, drop_first=True)
+st.title("❤️ Heart Disease Prediction App")
+st.write("Enter patient details to predict heart disease risk.")
 
-# Feature scaling (Standardization)
-scaler = StandardScaler()
-X_scaled = scaler.fit_transform(X_encoded)
+# Collect inputs
+age = st.number_input("Age", 20, 100, 45)
+sex = st.selectbox("Sex", ["M", "F"])
+chest_pain = st.selectbox("Chest Pain Type", ["ATA", "NAP", "TA"])
+resting_bp = st.number_input("Resting Blood Pressure", 50, 250, 120)
+cholesterol = st.number_input("Cholesterol", 100, 400, 200)
+fasting_bs = st.selectbox("Fasting Blood Sugar > 120 mg/dl?", ["No", "Yes"])
+resting_ecg = st.selectbox("Resting ECG", ["Normal", "ST"])
+max_hr = st.number_input("Max Heart Rate", 50, 220, 150)
+exercise_angina = st.selectbox("Exercise Angina", ["N", "Y"])
+oldpeak = st.number_input("Oldpeak", -5.0, 10.0, 1.0)
+st_slope = st.selectbox("ST Slope", ["Up", "Flat"])
 
-# Convert back to DataFrame
-X_scaled = pd.DataFrame(X_scaled, columns=X_encoded.columns)
-
-X_scaled.head()
-
-# Train-test split
-X_train, X_test, y_train, y_test = train_test_split(
-    X_scaled, y, test_size=0.2, random_state=42, stratify=y
-)
-
-X_train.shape, X_test.shape
-print(X_train.columns.tolist())
-
-
-
-models = {
-    "Logistic Regression": LogisticRegression(max_iter=1000),
-    "Decision Tree": DecisionTreeClassifier(),
-    "KNN": KNeighborsClassifier(),
-    "Naive Bayes": GaussianNB(),
-    "Random Forest": RandomForestClassifier(),
-    "XGBoost": xgb.XGBClassifier(eval_metric="logloss")
+# Build input dictionary
+input_dict = {
+    'Age': age,
+    'RestingBP': resting_bp,
+    'Cholesterol': cholesterol,
+    'FastingBS': 1 if fasting_bs == "Yes" else 0,
+    'MaxHR': max_hr,
+    'Oldpeak': oldpeak,
+    'Sex_M': 1 if sex == "M" else 0,
+    'ChestPainType_ATA': 1 if chest_pain == "ATA" else 0,
+    'ChestPainType_NAP': 1 if chest_pain == "NAP" else 0,
+    'ChestPainType_TA': 1 if chest_pain == "TA" else 0,
+    'RestingECG_Normal': 1 if resting_ecg == "Normal" else 0,
+    'RestingECG_ST': 1 if resting_ecg == "ST" else 0,
+    'ExerciseAngina_Y': 1 if exercise_angina == "Y" else 0,
+    'ST_Slope_Flat': 1 if st_slope == "Flat" else 0,
+    'ST_Slope_Up': 1 if st_slope == "Up" else 0,
 }
 
-results = {}
+input_df = pd.DataFrame([input_dict])
 
-for name, model in models.items():
-    model.fit(X_train, y_train)
-    y_pred = model.predict(X_test)
-    y_proba = model.predict_proba(X_test)[:, 1]
+# Scale input
+input_scaled = scaler.transform(input_df)
 
-    results[name] = {
-        "Accuracy": accuracy_score(y_test, y_pred),
-        "ROC_AUC": roc_auc_score(y_test, y_proba),
-        "Precision": precision_score(y_test, y_pred),
-        "Recall": recall_score(y_test, y_pred),
-        "F1 Score": f1_score(y_test, y_pred),
-        "MCC": matthews_corrcoef(y_test, y_pred),
-    }
-  results_df = pd.DataFrame(results).T
-results_df
-
-
-for name, model in models.items():
-    filename = name.replace(" ", "_") + ".pkl"
-    with open(filename, "wb") as f:
-        pickle.dump(model, f)
-
-# Save scaler too
-with open("scaler.pkl", "wb") as f:
-    pickle.dump(scaler, f)
+# Prediction
+if st.button("Predict"):
+    pred = model.predict(input_scaled)[0]
+    if pred == 1:
+        st.error("⚠️ High Risk of Heart Disease")
+    else:
+        st.success("✅ Low Risk of Heart Disease")
