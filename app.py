@@ -170,6 +170,24 @@ elif menu == "🏠 Home":
     st.write("This application predicts heart disease using multiple ML models.")
 
 
+def render_3d_plot(df):
+    st.markdown("### 🌐 3D Feature Visualization")
+
+    fig = px.scatter_3d(
+        df,
+        x="Age",
+        y="Cholesterol",
+        z="MaxHR",
+        color="HeartDisease",
+        symbol="HeartDisease",
+        color_continuous_scale=["green", "red"],
+        title="3D Scatter Plot: Age vs Cholesterol vs MaxHR",
+        height=600
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+
 # --------------------------------------------------------
 # MODEL COMPARISON PAGE
 # --------------------------------------------------------
@@ -202,6 +220,13 @@ elif menu == "📊 Model Comparison":
         ))
 
     st.plotly_chart(fig, use_container_width=True)
+
+    # -----------------------------
+    # 🚀 ADD THIS: 3D Visualization
+    # -----------------------------
+    st.write("### 🌐 3D Feature Visualization")
+    render_3d_plot(full_dataset_df) 
+
 
 
 # --------------------------------------------------------
