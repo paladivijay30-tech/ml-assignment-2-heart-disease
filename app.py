@@ -2,191 +2,280 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import pickle
-from matplotlib import pyplot as plt
-import plotly.express as px
+from sklearn.metrics import (
+    accuracy_score, roc_auc_score, precision_score,
+    recall_score, f1_score, matthews_corrcoef,
+    confusion_matrix, classification_report
+)
 import plotly.graph_objects as go
-import json
+import plotly.express as px
 
-# --------------------------------------------------------
-# LOAD METRICS JSON
-# --------------------------------------------------------
-with open("model_metrics.json", "r") as f:
-    model_metrics = json.load(f)
-
-# --------------------------------------------------------
-# PAGE CONFIG
-# --------------------------------------------------------
+# Page configuration
 st.set_page_config(
-    page_title="Heart Disease Prediction App",
-    layout="wide",
-    page_icon="❤️"
+    page_title="Heart Disease Prediction",
+    page_icon="❤️",
+    layout="wide"
 )
 
-# --------------------------------------------------------
-# CUSTOM CSS
-# --------------------------------------------------------
-def load_css():
-    st.markdown("""
-    <style>
-        .main {
-            padding: 0rem 2rem;
-        }
-        .big-title {
-            font-size: 2.4rem;
-            font-weight: 800;
-            margin-bottom: 1rem;
-        }
-        .sub-title {
-            font-size: 1.4rem;
-            font-weight: 600;
-            margin-top: 2rem;
-            margin-bottom: 1rem;
-        }
-    </style>
-    """, unsafe_allow_html=True)
+# Title and description
+st.title("❤️ Heart Disease Prediction System")
+st.markdown("""
+This application predicts heart disease using 6 different machine learning models.
+Upload your test data (CSV format) to get predictions and evaluate model performance.
+""")
 
-load_css()
+# Sidebar - Model Selection
+st.sidebar.header("⚙️ Model Configuration")
 
-# --------------------------------------------------------
-# SIDEBAR NAVIGATION
-# --------------------------------------------------------
-menu = st.sidebar.radio("Navigation", ["🏠 Home", "🔮 Predict", "📊 Model Comparison", "ℹ️ About"])
-
-# --------------------------------------------------------
-# LOAD MODELS
-# --------------------------------------------------------
-def load_pkl(path):
-    return pickle.load(open(path, "rb"))
-
-models = {
-    "Logistic Regression": load_pkl("Logistic_Regression.pkl"),
-    "Decision Tree": load_pkl("Decision_Tree.pkl"),
-    "Random Forest": load_pkl("Random_Forest.pkl"),
-    "XGBoost": load_pkl("XGBoost.pkl"),
-    "KNN": load_pkl("KNN.pkl"),
-    "Naive Bayes": load_pkl("Naive_Bayes.pkl"),
+model_options = {
+    "Logistic Regression": "Logistic_Regression.pkl",
+    "Decision Tree": "Decision_Tree.pkl",
+    "K-Nearest Neighbors": "KNN.pkl",
+    "Naive Bayes": "Naive_Bayes.pkl",
+    "Random Forest": "Random_Forest.pkl",
+    "XGBoost": "XGBoost.pkl"
 }
 
-scaler = load_pkl("scaler.pkl")
+selected_model = st.sidebar.selectbox(
+    "Select Classification Model",
+    list(model_options.keys())
+)
 
-# --------------------------------------------------------
-# USER INPUT FORM
-# --------------------------------------------------------
-def get_user_input():
-    st.markdown("<div class='sub-title'>Enter Patient Details</div>", unsafe_allow_html=True)
+# Load model and scaler
+@st.cache_resource
+def load_model(model_name):
+    try:
+        with open(model_options[model_name], 'rb') as f:
+            model = pickle.load(f)
+        return model
+    except Exception as e:
+        st.error(f"Error loading model: {e}")
+        return None
 
-    col1, col2 = st.columns(2)
+@st.cache_resource
+def load_scaler():
+    try:
+        with open('scaler.pkl', 'rb') as f:
+            scaler = pickle.load(f)
+        return scaler
+    except Exception as e:
+        st.error(f"Error loading scaler: {e}")
+        return None
 
+# File upload
+st.sidebar.header("📁 Upload Test Data")
+uploaded_file = st.sidebar.file_uploader(
+    "Upload CSV file",
+    type=['csv'],
+    help="Upload test dataset with features and HeartDisease target column"
+)
+
+if uploaded_file is not None:
+    # Load data
+    df = pd.read_csv(uploaded_file)
+    
+    st.header("📊 Dataset Overview")
+    col1, col2, col3 = st.columns(3)
+    
     with col1:
-        age = st.number_input("Age", 1, 120, 40)
-        resting_bp = st.number_input("Resting BP", 50, 250, 120)
-        cholesterol = st.number_input("Cholesterol", 50, 600, 200)
-        max_hr = st.number_input("Max Heart Rate", 60, 220, 150)
-        oldpeak = st.number_input("Oldpeak", 0.0, 10.0, 1.0)
-
+        st.metric("Total Samples", len(df))
     with col2:
-        sex = st.selectbox("Sex", ["M", "F"])
-        fasting_bs = st.selectbox("Fasting Blood Sugar > 120 mg/dl?", ["No", "Yes"])
-        chest_pain = st.selectbox("Chest Pain Type", ["ATA", "NAP", "TA"])
-        resting_ecg = st.selectbox("Resting ECG", ["Normal", "ST"])
-        exercise_angina = st.selectbox("Exercise Angina", ["N", "Y"])
-        st_slope = st.selectbox("ST Slope", ["Flat", "Up"])
-
-    return {
-        "Age": age,
-        "RestingBP": resting_bp,
-        "Cholesterol": cholesterol,
-        "FastingBS": 1 if fasting_bs == "Yes" else 0,
-        "MaxHR": max_hr,
-        "Oldpeak": oldpeak,
-        "Sex_M": 1 if sex == "M" else 0,
-        "ChestPainType_ATA": 1 if chest_pain == "ATA" else 0,
-        "ChestPainType_NAP": 1 if chest_pain == "NAP" else 0,
-        "ChestPainType_TA": 1 if chest_pain == "TA" else 0,
-        "RestingECG_Normal": 1 if resting_ecg == "Normal" else 0,
-        "RestingECG_ST": 1 if resting_ecg == "ST" else 0,
-        "ExerciseAngina_Y": 1 if exercise_angina == "Y" else 0,
-        "ST_Slope_Flat": 1 if st_slope == "Flat" else 0,
-        "ST_Slope_Up": 1 if st_slope == "Up" else 0,
-    }
-
-# --------------------------------------------------------
-# HOME PAGE
-# --------------------------------------------------------
-if menu == "🏠 Home":
-    st.markdown("<div class='big-title'>❤️ Heart Disease Prediction App</div>", unsafe_allow_html=True)
-    st.write("This application predicts heart disease using multiple ML models.")
-
-# --------------------------------------------------------
-# PREDICT PAGE
-# --------------------------------------------------------
-elif menu == "🔮 Predict":
-    st.markdown("<div class='big-title'>❤️ Heart Disease Prediction</div>", unsafe_allow_html=True)
-
-    input_data = get_user_input()
-    df_input = pd.DataFrame([input_data])
-
-    scaled = scaler.transform(df_input)
-    best_model = models["XGBoost"]
-    pred = best_model.predict(scaled)[0]
-
-    if st.button("Predict"):
-        if pred == 1:
-            st.error("⚠️ High Risk of Heart Disease", icon="🚨")
-        else:
-            st.success("✅ Low Risk of Heart Disease", icon="💚")
-
-# --------------------------------------------------------
-# MODEL COMPARISON PAGE
-# --------------------------------------------------------
-elif menu == "📊 Model Comparison":
-
-    st.markdown("<div class='big-title'>📊 Model Comparison Dashboard</div>", unsafe_allow_html=True)
-
-    df = pd.DataFrame([
-        {
-            "Model": model,
-            **metrics
-        }
-        for model, metrics in model_metrics.items()
-    ])
-
-    st.dataframe(df)
-
-    st.write("### 📌 Accuracy Comparison")
-    st.plotly_chart(px.bar(df, x="Model", y="Accuracy", color="Accuracy"))
-
-    st.write("### 📌 ROC-AUC Comparison")
-    st.plotly_chart(px.bar(df, x="Model", y="ROC_AUC", color="ROC_AUC"))
-
-    st.write("### 📌 Radar Chart Summary")
-    fig = go.Figure()
-    for model, metrics in model_metrics.items():
-        fig.add_trace(go.Scatterpolar(
-            r=list(metrics.values()),
-            theta=list(metrics.keys()),
-            fill="toself",
-            name=model
+        st.metric("Features", len(df.columns) - 1)
+    with col3:
+        if 'HeartDisease' in df.columns:
+            st.metric("Positive Cases", df['HeartDisease'].sum())
+    
+    # Show data preview
+    with st.expander("🔍 View Data Sample"):
+        st.dataframe(df.head(10))
+    
+    # Check if HeartDisease column exists
+    if 'HeartDisease' not in df.columns:
+        st.error("⚠️ Dataset must contain 'HeartDisease' column for evaluation!")
+        st.stop()
+    
+    # Preprocessing
+    try:
+        # Separate features and target
+        X = df.drop("HeartDisease", axis=1)
+        y = df["HeartDisease"]
+        
+        # One-hot encoding
+        categorical_cols = X.select_dtypes(include=["object"]).columns
+        X_encoded = pd.get_dummies(X, columns=categorical_cols, drop_first=True)
+        
+        # Load scaler and transform
+        scaler = load_scaler()
+        if scaler is None:
+            st.stop()
+        
+        # Get expected feature names from scaler
+        expected_features = scaler.feature_names_in_
+        
+        # Align test data with training features
+        # Add missing columns with 0s
+        for col in expected_features:
+            if col not in X_encoded.columns:
+                X_encoded[col] = 0
+        
+        # Remove extra columns not in training
+        X_encoded = X_encoded[expected_features]
+        
+        X_scaled = scaler.transform(X_encoded)
+        X_scaled = pd.DataFrame(X_scaled, columns=expected_features)
+        
+        # Load selected model
+        model = load_model(selected_model)
+        if model is None:
+            st.stop()
+        
+        # Make predictions
+        y_pred = model.predict(X_scaled)
+        y_proba = model.predict_proba(X_scaled)[:, 1]
+        
+        # Calculate metrics
+        st.header(f"📈 Model Performance: {selected_model}")
+        
+        metrics_col1, metrics_col2, metrics_col3 = st.columns(3)
+        
+        with metrics_col1:
+            st.metric("Accuracy", f"{accuracy_score(y, y_pred):.4f}")
+            st.metric("Precision", f"{precision_score(y, y_pred):.4f}")
+        
+        with metrics_col2:
+            st.metric("ROC-AUC Score", f"{roc_auc_score(y, y_proba):.4f}")
+            st.metric("Recall", f"{recall_score(y, y_pred):.4f}")
+        
+        with metrics_col3:
+            st.metric("F1 Score", f"{f1_score(y, y_pred):.4f}")
+            st.metric("MCC Score", f"{matthews_corrcoef(y, y_pred):.4f}")
+        
+        # Confusion Matrix
+        st.header("🎯 Confusion Matrix")
+        
+        cm = confusion_matrix(y, y_pred)
+        
+        fig = go.Figure(data=go.Heatmap(
+            z=cm,
+            x=['Predicted No Disease', 'Predicted Disease'],
+            y=['Actual No Disease', 'Actual Disease'],
+            colorscale='Blues',
+            text=cm,
+            texttemplate='%{text}',
+            textfont={"size": 16},
+            showscale=True
         ))
-    st.plotly_chart(fig)
+        
+        fig.update_layout(
+            title=f'Confusion Matrix - {selected_model}',
+            xaxis_title='Predicted',
+            yaxis_title='Actual',
+            height=400
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Classification Report
+        st.header("📋 Classification Report")
+        
+        report = classification_report(y, y_pred, output_dict=True)
+        report_df = pd.DataFrame(report).transpose()
+        
+        st.dataframe(
+            report_df.style.background_gradient(cmap='RdYlGn', subset=['precision', 'recall', 'f1-score']),
+            use_container_width=True
+        )
+        
+        # Prediction Distribution
+        st.header("📊 Prediction Distribution")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Actual vs Predicted
+            comparison_df = pd.DataFrame({
+                'Actual': y.value_counts(),
+                'Predicted': pd.Series(y_pred).value_counts()
+            })
+            
+            fig = go.Figure(data=[
+                go.Bar(name='Actual', x=['No Disease', 'Disease'], y=comparison_df['Actual'].values),
+                go.Bar(name='Predicted', x=['No Disease', 'Disease'], y=comparison_df['Predicted'].values)
+            ])
+            
+            fig.update_layout(
+                title='Actual vs Predicted Distribution',
+                barmode='group',
+                height=400
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            # Probability distribution
+            fig = px.histogram(
+                x=y_proba,
+                nbins=30,
+                title='Prediction Probability Distribution',
+                labels={'x': 'Probability of Heart Disease', 'y': 'Count'}
+            )
+            
+            fig.update_layout(height=400)
+            st.plotly_chart(fig, use_container_width=True)
+        
+        # Download predictions
+        st.header("💾 Download Predictions")
+        
+        results_df = df.copy()
+        results_df['Predicted_HeartDisease'] = y_pred
+        results_df['Prediction_Probability'] = y_proba
+        
+        csv = results_df.to_csv(index=False)
+        st.download_button(
+            label="📥 Download Results as CSV",
+            data=csv,
+            file_name=f'predictions_{selected_model.replace(" ", "_")}.csv',
+            mime='text/csv'
+        )
+        
+    except Exception as e:
+        st.error(f"❌ Error processing data: {e}")
+        st.info("Make sure your test data has the same features as the training data.")
 
-    # 3D Visualization
-    st.write("### 🌐 3D Feature Visualization")
-    df_heart = pd.read_csv("heart.csv")
-    fig3d = px.scatter_3d(
-        df_heart, x="Age", y="Cholesterol", z="MaxHR",
-        color="HeartDisease", color_continuous_scale=["green", "red"], height=600
-    )
-    st.plotly_chart(fig3d)
-
-# --------------------------------------------------------
-# ABOUT PAGE
-# --------------------------------------------------------
-elif menu == "ℹ️ About":
-    st.markdown("<div class='big-title'>ℹ️ About This App</div>", unsafe_allow_html=True)
-    st.write("""
-        This Heart Disease Prediction App uses multiple ML models trained 
-        on clinical patient data, including charts, dashboards, dark mode, 
-        3D visualization and much more.
+else:
+    st.info("👈 Please upload a CSV file from the sidebar to begin.")
+    
+    # Display model comparison table
+    st.header("📊 Model Performance Comparison")
+    st.markdown("""
+    Below is the performance comparison of all 6 implemented models on the Heart Disease dataset:
     """)
-    st.markdown("### 👨‍💻 Created by **Surya Paladi**")
+    
+    # Create comparison table
+    comparison_data = {
+        'Model': ['Logistic Regression', 'Decision Tree', 'KNN', 'Naive Bayes', 
+                  'Random Forest', 'XGBoost'],
+        'Accuracy': [0.8859, 0.7880, 0.8859, 0.9130, 0.8696, 0.8587],
+        'ROC-AUC': [0.9297, 0.7813, 0.9360, 0.9451, 0.9314, 0.9219],
+        'Precision': [0.8716, 0.7890, 0.8857, 0.9300, 0.8750, 0.8725],
+        'Recall': [0.9314, 0.8431, 0.9118, 0.9118, 0.8922, 0.8725],
+        'F1 Score': [0.9005, 0.8152, 0.8986, 0.9208, 0.8835, 0.8725],
+        'MCC': [0.7694, 0.5691, 0.7686, 0.8246, 0.7356, 0.7140]
+    }
+    
+    comparison_df = pd.DataFrame(comparison_data)
+    
+    st.dataframe(
+        comparison_df.style.background_gradient(cmap='RdYlGn', subset=comparison_df.columns[1:]),
+        use_container_width=True
+    )
+    
+    st.success("🏆 Best Model: **Naive Bayes** (ROC-AUC: 0.9451)")
+
+# Footer
+st.markdown("---")
+st.markdown("""
+<div style='text-align: center'>
+    <p>💡 Built with Streamlit | ML Assignment 2 | Heart Disease Prediction System</p>
+</div>
+""", unsafe_allow_html=True)
